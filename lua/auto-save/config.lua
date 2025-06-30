@@ -1,22 +1,16 @@
 local M = {}
 
-local default_config = {
+---@class AutoSave.Config
+local defaults = {
 	delay = 1,
 	enabled = true,
 }
 
-local current_config = {}
+---@type AutoSave.Config
+M.options = {}
 
-function M.setup(user_config)
-  current_config = vim.tbl_deep_extend("force", default_config, user_config or {})
-end
-
-function M.get()
-  return current_config
-end
-
-function M.get_default()
-  return default_config
+function M.setup(options)
+  M.options = vim.tbl_deep_extend("force", defaults, options or {})
 end
 
 return M

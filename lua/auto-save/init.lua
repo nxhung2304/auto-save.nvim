@@ -1,9 +1,12 @@
+---@class auto-save: auto-save.api
 local M = {}
 local api = vim.api
 local uv = vim.uv
 local fn = vim.fn
 local schedule_wrap = vim.schedule_wrap
 local cmd = vim.cmd
+local core = require("auto-save.core")
+local log = require("auto-save.log")
 
 function M.reload()
 	package.loaded["auto-save"] = nil
@@ -18,12 +21,16 @@ end
 
 local config = require("auto-save.config")
 
-function M.setup(user_configs)
-	config.setup(user_configs)
-	M.last_config = user_configs
+---@param options? AutoSave.Config
+function M.setup(options)
+	config.setup(options)
+	M.last_config = options
 	print("[auto-save] Setup!")
 
-	-- M.enable()
+	M.save_autocmd()
+end
+
+function M.save_autocmd()
 	local group = vim.api.nvim_create_augroup("AutoSave", { clear = true })
 	api.nvim_create_autocmd({ "TextChanged", "InsertLeave" }, {
 		group = group,
@@ -31,61 +38,31 @@ function M.setup(user_configs)
 	})
 end
 
-function M.enable()
-	print("[auto-save] Enable")
-	local timer = vim.uv.new_timer()
-	local delay = 3000
-	timer:start(
-		1000,
-		delay,
-		vim.schedule_wrap(function()
-			vim.api.nvim_command('echomsg "Auto save file"')
-		end)
-	)
-end
-
-function M.should_save()
-	if vim.fn.expand("%") == "" then
-		return false
-	end
-
-	if not vim.bo.modifiable then
-		return false
-	end
-
-	if not vim.bo.modified then
-		return false
-	end
-
-	if vim.bo.readonly then
-		return false
-	end
-
-	return true
-end
-
-local timer = vim.uv.new_timer()
-local DELAY = 1000
+function M.enable() end
 
 function M.debounced_save()
+	local timer = vim.uv.new_timer()
 	if timer then
 		timer:stop()
 	end
 
+	local delay = config.options.delay
 	timer:start(
-		DELAY,
+		delay,
 		0,
 		vim.schedule_wrap(function()
-			if M.should_save() then
-				vim.cmd("silent! write")
-				local file_name = vim.fn.expand("%")
-				if file_name == "" then
-					file_name = "[No Name]"
-				end
-				vim.notify("Auto save: " .. file_name, vim.log.levels.INFO)
+			if core.should_save() then
+				M.perform_save()
 			end
 		end)
 	)
+end
+
+function M.perform_save()
+	vim.cmd("silent! write")
+
+	local file_name = vim.fn.expand("%")
+	log.info(file_name)
 end
 
 function M.disable() end
