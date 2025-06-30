@@ -7,30 +7,21 @@ local schedule_wrap = vim.schedule_wrap
 local cmd = vim.cmd
 local core = require("auto-save.core")
 local log = require("auto-save.log")
-
-function M.reload()
-	package.loaded["auto-save"] = nil
-	package.loaded["auto-save.init"] = nil
-
-	local reloaded = require("auto-save")
-	reloaded.setup(M.last_config or {})
-
-	print("✅ Plugin reloaded!")
-	return reloaded
-end
+local commands = require("auto-save.commands")
 
 local config = require("auto-save.config")
 
 ---@param options? AutoSave.Config
 function M.setup(options)
 	config.setup(options)
-	M.last_config = options
+	commands.setup()
+
 	print("[auto-save] Setup!")
 
-	M.save_autocmd()
+	M.setup_autosave_callback()
 end
 
-function M.save_autocmd()
+function M.setup_autosave_callback()
 	local group = vim.api.nvim_create_augroup("AutoSave", { clear = true })
 	api.nvim_create_autocmd({ "TextChanged", "InsertLeave" }, {
 		group = group,
@@ -38,21 +29,27 @@ function M.save_autocmd()
 	})
 end
 
-function M.enable() end
+local debounce_timer = nil
 
 function M.debounced_save()
-	local timer = vim.uv.new_timer()
-	if timer then
-		timer:stop()
+	if debounce_timer then
+		debounce_timer:stop()
+		debounce_timer:close()
 	end
 
 	local delay = config.options.delay
-	timer:start(
+	debounce_timer = vim.uv.new_timer
+	debounce_timer:start(
 		delay,
 		0,
 		vim.schedule_wrap(function()
 			if core.should_save() then
 				M.perform_save()
+			end
+
+			if debounce_timer then
+				debounce_timer:close()
+				debounce_timer = nil
 			end
 		end)
 	)
@@ -66,11 +63,6 @@ function M.perform_save()
 end
 
 function M.disable() end
-
-local nvim_cmd = vim.api.nvim_create_user_command
-
-nvim_cmd("ASReload", function()
-	M.reload()
-end, { desc = "Reload auto-save plugin" })
+function M.enable() end
 
 return M
