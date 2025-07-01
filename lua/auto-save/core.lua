@@ -2,38 +2,37 @@ local M = {}
 
 local bo = vim.bo
 local fn = vim.fn
+local log = require("auto-save.log")
 
 M.has_filename = function()
 	return fn.expand("%") ~= ""
 end
 
-M.can_edit = function ()
+M.can_edit = function()
 	return bo.modifiable
 end
 
-M.was_change = function ()
+M.was_change = function()
 	return bo.modified
 end
 
-M.read_only = function ()
+M.read_only = function()
 	return bo.readonly
 end
 
 function M.should_save()
-	if not M.has_filename() then
-		return false
-	end
+	local checks = {
+		{ condition = not M.has_filename(), reason = "No filename" },
+		{ condition = not M.can_edit(), reason = "Not modifiable" },
+		{ condition = not M.was_change(), reason = "No changes" },
+		{ condition = M.read_only(), reason = "Read only" },
+	}
 
-	if not M.can_edit() then
-		return false
-	end
-
-	if not M.was_change() then
-		return false
-	end
-
-	if M.read_only() then
-		return false
+	for _, check in ipairs(checks) do
+		if check.condition then
+			log.debug("Skip save: " .. check.reason)
+			return false
+		end
 	end
 
 	return true

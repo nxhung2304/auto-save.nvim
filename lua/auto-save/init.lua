@@ -11,12 +11,18 @@ local commands = require("auto-save.commands")
 
 local config = require("auto-save.config")
 
+local state = {
+	enabled = false,
+	group = nil,
+	timer = nil,
+}
+
 ---@param options? AutoSave.Config
 function M.setup(options)
 	config.setup(options)
 	commands.setup()
 
-	print("[auto-save] Setup!")
+	state.enabled = config.options.enabled
 
 	M.setup_autosave_callback()
 end
@@ -59,10 +65,55 @@ function M.perform_save()
 	vim.cmd("silent! write")
 
 	local file_name = vim.fn.expand("%")
-	log.info(file_name)
+	if file_name == "" then
+		file_name = "[No Name]"
+	end
+	local message = "Auto save: " .. file_name
+
+	log.info(message)
 end
 
-function M.disable() end
-function M.enable() end
+function M.perform_save()
+	local ok, err = pcall(function()
+		vim.cmd("silent! write")
+	end)
+
+	if ok then
+		local file_name = fn.expand("%")
+		log.info("Saved: " .. file_name)
+	else
+		log.error("Save failed: " .. tostring(err))
+	end
+end
+
+function M.enable()
+	if state.enabled then
+		return
+	end
+
+	state.enabled = true
+
+	M.setup_autosave_callback()
+	log.info("Auto-save enabled")
+end
+
+function M.disable()
+	if not state.enabled then
+		return
+	end
+
+	state.enabled = false
+
+	if state.group then
+		api.nvim_del_augroup_by_id(state.group)
+	end
+
+	if state.timer then
+		state.timer:close()
+		state.timer = nil
+	end
+
+	log.info("Auto-save disabled")
+end
 
 return M
